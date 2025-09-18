@@ -1,54 +1,24 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Trading Sim (Supabase)</title>
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-  <div class="container">
-    <header><h1>Trading Simulator (Supabase)</h1></header>
-    <main id="app">
-      <section id="view-login">
-        <h2>Login</h2>
-        <input id="login-username" placeholder="username"><br>
-        <input id="login-password" type="password" placeholder="password"><br>
-        <button id="login-btn">Login</button>
-        <p>or <button id="to-register">Register</button></p>
-      </section>
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Trading Sim - Login</title><link rel="stylesheet" href="styles.css"></head><body>
+<div class="wrap">
+  <h1>Trading Sim (Memory)</h1>
+  <div id="forms">
+    <div id="login-form">
+      <h2>Login</h2>
+      <input id="login-username" placeholder="username">
+      <input id="login-password" type="password" placeholder="password">
+      <button id="login-btn">Login</button>
+      <p>or <a href="#" id="show-register">Register</a></p>
+    </div>
 
-      <section id="view-register" class="hidden">
-        <h2>Register</h2>
-        <input id="reg-username" placeholder="username"><br>
-        <input id="reg-password" type="password" placeholder="password"><br>
-        <button id="reg-btn">Register</button>
-        <p><button id="to-login">Back</button></p>
-      </section>
-
-      <section id="view-dashboard" class="hidden">
-        <h2 id="welcome">Welcome</h2>
-        <div id="wallet"></div>
-        <div>
-          <label>Pair<select id="pair-select"><option>BTC/EUR</option><option>ETH/EUR</option><option>USDT/EUR</option></select></label>
-          <input id="manual-amount" type="number" value="0.01"><button id="buy">Buy</button><button id="sell">Sell</button>
-        </div>
-        <h3>Chat</h3>
-        <div id="chat-history" class="log"></div>
-        <input id="chat-input"><button id="chat-send">Send</button>
-        <div><button id="btn-logout">Logout</button></div>
-      </section>
-
-      <section id="view-admin" class="hidden">
-        <h2>Admin</h2>
-        <div id="admin-users"></div>
-        <h3>Chat</h3>
-        <div id="admin-chat-history"></div>
-        <input id="admin-chat-input"><button id="admin-chat-send">Send</button>
-      </section>
-    </main>
+    <div id="register-form" class="hidden">
+      <h2>Register</h2>
+      <input id="reg-username" placeholder="username">
+      <input id="reg-email" placeholder="email">
+      <input id="reg-password" type="password" placeholder="password">
+      <button id="reg-btn">Create Account</button>
+      <p>or <a href="#" id="show-login">Back to Login</a></p>
+    </div>
   </div>
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="app.js"></script>
-</body>
-</html>
+</div>
+<script src="app.js"></script>
+</body></html>
