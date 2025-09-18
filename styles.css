@@ -1,0 +1,37 @@
+/* styles.css - clean dark UI */
+:root{ --bg:#071022; --card:#08121a; --muted:#9aa4b2; --accent:#7dd3fc; }
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,var(--bg),#021019);color:#e6eef6}
+.container{max-width:1100px;margin:28px auto;padding:20px}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+h1{margin:0;font-size:20px}
+nav .nav-btn{background:none;border:1px solid rgba(255,255,255,0.04);color:var(--accent);padding:8px 12px;border-radius:8px;cursor:pointer}
+.view{margin-top:12px}
+.hidden{display:none}
+.card{background:var(--card);padding:12px;border-radius:10px;box-shadow:0 6px 18px rgba(2,6,23,0.7);margin-bottom:12px}
+label{display:block;margin-bottom:8px;font-size:14px}
+input,select{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+.row{display:flex;gap:8px;margin-top:8px}
+button{cursor:pointer;border:0;padding:8px 12px;border-radius:8px;background:var(--accent);color:#042033}
+.note{font-size:12px;color:var(--muted);margin-top:8px}
+.top-row{display:flex;gap:12px;align-items:flex-start}
+.balance{min-width:260px}
+.sim-row{display:flex;gap:12px;align-items:flex-start}
+.sim-card{flex:1}
+canvas{width:100%;border-radius:6px;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent)}
+.log{max-height:260px;overflow:auto;font-size:13px;background:linear-gradient(180deg, rgba(255,255,255,0.015), transparent);padding:8px;border-radius:6px}
+.chat-history{display:flex;flex-direction:column;gap:6px}
+.chat-history .msg{padding:8px;border-radius:8px;max-width:85%}
+.msg.user{align-self:flex-end;background:rgba(124,58,237,0.15);}
+.msg.admin{align-self:flex-start;background:rgba(125,211,252,0.08);}
+.msg.system{align-self:center;background:rgba(255,255,255,0.03);font-size:12px}
+.admin-table{width:100%;border-collapse:collapse}
+.admin-table th, .admin-table td{padding:8px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left;font-size:13px}
+.admin-chat{display:flex;gap:12px}
+.admin-user-list{width:220px;border-right:1px solid rgba(255,255,255,0.03);padding-right:8px}
+.admin-user-list ul{list-style:none;margin:0;padding:0}
+.admin-user-list li{padding:8px;border-radius:6px;cursor:pointer}
+.admin-user-list li.active{background:rgba(125,211,252,0.06)}
+.admin-chat-window{flex:1}
+footer{margin-top:14px;color:var(--muted);font-size:12px}
+@media(max-width:900px){.sim-row{flex-direction:column}.top-row{flex-direction:column}.admin-chat{flex-direction:column}.admin-user-list{width:100%;border-right:none;border-bottom:1px solid rgba(255,255,255,0.03);padding-bottom:8px}}

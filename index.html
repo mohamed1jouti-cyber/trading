@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Multi-Currency Trading Bot Simulator (Realtime - PostgreSQL)</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Multi-Currency Trading Bot Simulator</h1>
+      <nav>
+        <button id="nav-login" class="nav-btn">Login</button>
+        <button id="nav-register" class="nav-btn">Register</button>
+      </nav>
+    </header>
+
+    <main id="app">
+      <!-- LOGIN -->
+      <section id="view-login" class="view">
+        <h2>Login</h2>
+        <form id="form-login" class="card">
+          <label>Username<input id="login-username" required></label>
+          <label>Password<input id="login-password" type="password" required></label>
+          <div class="row">
+            <button type="submit">Login</button>
+            <button type="button" id="to-register">Create account</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- REGISTER -->
+      <section id="view-register" class="view hidden">
+        <h2>Register</h2>
+        <form id="form-register" class="card">
+          <label>Username<input id="register-username" required></label>
+          <label>Password<input id="register-password" type="password" required></label>
+          <div class="row">
+            <button type="submit">Register</button>
+            <button type="button" id="to-login">Back to login</button>
+          </div>
+          <p class="note">Accounts start with zero balances. Only admin can modify balances.</p>
+        </form>
+      </section>
+
+      <!-- DASHBOARD -->
+      <section id="view-dashboard" class="view hidden">
+        <div class="top-row">
+          <h2 id="welcome">Welcome</h2>
+          <div class="balance card">
+            <h3>Wallet</h3>
+            <div id="wallet-list"></div>
+            <p>Total (EUR): <strong id="total-eur">€0.00</strong></p>
+            <div class="row">
+              <button id="btn-logout">Logout</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="sim-row">
+          <div class="card sim-card">
+            <h3>Market</h3>
+            <label>Pair<select id="pair-select">
+              <option>BTC/EUR</option>
+              <option>ETH/EUR</option>
+              <option>USDT/EUR</option>
+              <option>XRP/EUR</option>
+              <option>LTC/EUR</option>
+            </select></label>
+            <canvas id="price-canvas" width="700" height="200"></canvas>
+            <p>Current Price: <span id="current-price">€0.00</span></p>
+          </div>
+
+          <div class="card sim-card">
+            <h3>Trading Bot</h3>
+            <p>Strategy: SMA crossover (fast/slow) on selected pair</p>
+            <label>Fast SMA window<input id="sma-fast" type="number" min="1" value="5"></label>
+            <label>Slow SMA window<input id="sma-slow" type="number" min="2" value="20"></label>
+            <label>Trade size (base currency units)<input id="trade-size" type="number" min="1" value="1"></label>
+            <div class="row">
+              <button id="btn-start-bot">Start Bot</button>
+              <button id="btn-stop-bot" disabled>Stop Bot</button>
+            </div>
+            <h4>Bot log</h4>
+            <div id="bot-log" class="log"></div>
+          </div>
+        </div>
+
+        <h3>Manual Trade</h3>
+        <div class="card">
+          <label>Amount (base units)<input id="manual-amount" type="number" min="0.00000001" value="0.001" step="0.00000001"></label>
+          <div class="row">
+            <button id="btn-buy">Buy</button>
+            <button id="btn-sell">Sell</button>
+          </div>
+        </div>
+
+        <h3>Chat with Admin</h3>
+        <div class="card chat-card">
+          <div id="chat-history" class="log chat-history"></div>
+          <div class="row">
+            <input id="chat-input" placeholder="Ask admin for USDT deposit address or request withdrawal, e.g. 'Withdraw 100 USDT'">
+            <button id="chat-send">Send</button>
+          </div>
+          <p class="note">Use chat to request deposits/withdrawals. Admin will reply and can update balances.</p>
+        </div>
+
+        <h3>Transaction history</h3>
+        <div id="history" class="card log"></div>
+      </section>
+
+      <!-- ADMIN -->
+      <section id="view-admin" class="view hidden">
+        <h2>Admin Dashboard</h2>
+        <div class="card">
+          <h3>Registered users (wallet snapshot)</h3>
+          <table id="admin-users" class="admin-table">
+            <thead><tr><th>Username</th><th>EUR</th><th>BTC</th><th>ETH</th><th>USDT</th><th>XRP</th><th>LTC</th><th>Actions</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <h3>User Conversations</h3>
+          <div class="admin-chat">
+            <div class="admin-user-list">
+              <ul id="admin-userlist"></ul>
+            </div>
+            <div class="admin-chat-window">
+              <h4 id="chat-with">Select a user</h4>
+              <div id="admin-chat-history" class="log chat-history"></div>
+              <div class="row">
+                <input id="admin-chat-input" placeholder="Reply to user... (you can paste USDT address)">
+                <button id="admin-chat-send">Send</button>
+                <button id="admin-set-balance">Set Balance</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="admin-simulate">Run single market step</button>
+          <button id="admin-logout">Logout</button>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <small></small>
+    </footer>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
