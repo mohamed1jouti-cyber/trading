@@ -1,7 +1,7 @@
 
 services:
   - type: web
-    name: trading-sim-pg
+    name: trading-sim-supabase-full
     env: node
     plan: free
     region: frankfurt

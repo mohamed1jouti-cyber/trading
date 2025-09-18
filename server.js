@@ -11,11 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 dotenv.config();
-
 const { Pool } = pkg;
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: true } });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,8 +20,9 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
 const ADMIN_PASS = process.env.ADMIN_PASS || '12041998avril1999A';
 
+// DATABASE_URL required
 const DATABASE_URL = process.env.DATABASE_URL;
-if (!DATABASE_URL) {
+if(!DATABASE_URL){
   console.error('❌ No DATABASE_URL provided. Set it in environment variables.');
   process.exit(1);
 }
@@ -35,13 +32,13 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
 
-// Create tables if not exist
-async function initDb() {
+// Initialize DB tables
+async function initDb(){
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       username TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
+      password TEXT NOT NULL,
       balances JSONB DEFAULT '{"EUR":0,"BTC":0,"ETH":0,"USDT":0,"XRP":0,"LTC":0}'::jsonb,
       banned BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP DEFAULT NOW()
@@ -73,11 +70,15 @@ async function initDb() {
 
 initDb().catch(err=>{ console.error('DB init error', err); process.exit(1); });
 
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: true } });
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Simple prices simulation (in-memory)
+// Simple market simulation
 const PAIRS = {
   'BTC/EUR': { symbol:'BTC', price:25000, vol:0.03 },
   'ETH/EUR': { symbol:'ETH', price:1500, vol:0.04 },
@@ -87,57 +88,45 @@ const PAIRS = {
 };
 const priceSeries = {};
 Object.keys(PAIRS).forEach(k=>priceSeries[k]=[PAIRS[k].price]);
-
 function stepMarket(){
   Object.keys(PAIRS).forEach(pair=>{
     const meta = PAIRS[pair];
-    const series = priceSeries[pair];
-    const last = series.length ? series[series.length-1] : meta.price;
+    const last = priceSeries[pair].length ? priceSeries[pair][priceSeries[pair].length-1] : meta.price;
     const shock = (Math.random()-0.5)*2*meta.vol;
     const drift = (Math.random()-0.5)*0.001;
     const next = Math.max(0.0000001, last*(1+shock+drift));
-    series.push(next);
-    if(series.length>300) series.shift();
+    priceSeries[pair].push(next);
+    if(priceSeries[pair].length>300) priceSeries[pair].shift();
   });
   io.emit('prices', serverPriceSnapshot());
 }
-setInterval(stepMarket, 1000);
 function serverPriceSnapshot(){ const out={}; Object.keys(priceSeries).forEach(p=>out[p]=priceSeries[p].slice(-1)[0]); return out; }
+setInterval(stepMarket, 1000);
 
 // Helpers
 function sanitizeUserRow(row){
   if(!row) return null;
-  return {
-    username: row.username,
-    balances: row.balances,
-    banned: row.banned
-  };
+  return { username: row.username, balances: row.balances, banned: row.banned };
 }
-
 function authMiddleware(req,res,next){
   const h = req.headers.authorization;
   if(!h) return res.status(401).json({ error:'no auth' });
   const token = h.split(' ')[1];
-  try{
-    const payload = jwt.verify(token, JWT_SECRET);
-    req.user = payload;
-    next();
-  }catch(e){ return res.status(401).json({ error:'invalid token' }); }
+  try{ const payload = jwt.verify(token, JWT_SECRET); req.user = payload; next(); }catch(e){ return res.status(401).json({ error:'invalid token' }); }
 }
 
 // Routes
-app.get('/health', (req,res)=> res.json({status:'ok', uptime: process.uptime()}));
+app.get('/health', (req,res)=> res.json({ status:'ok', uptime: process.uptime() }));
 
 app.post('/api/register', async (req,res)=>{
   const { username, password } = req.body;
   if(!username || !password) return res.status(400).json({ error:'missing' });
   try{
     const hash = await bcrypt.hash(password, 10);
-    await pool.query('INSERT INTO users(username, password_hash) VALUES($1,$2)', [username, hash]);
-    // create chat row
-    await pool.query('INSERT INTO chats(username, messages) VALUES($1, $2) ON CONFLICT (username) DO NOTHING', [username, JSON.stringify([])]);
+    await pool.query('INSERT INTO users(username, password) VALUES($1,$2)', [username, hash]);
+    await pool.query('INSERT INTO chats(username, messages) VALUES($1,$2) ON CONFLICT (username) DO NOTHING', [username, JSON.stringify([])]);
     const token = jwt.sign({ username }, JWT_SECRET, { expiresIn:'7d' });
-    res.json({ token, user: { username } });
+    return res.json({ token, user: { username } });
   }catch(err){
     console.error('register err', err);
     return res.status(400).json({ error:'user exists or db error' });
@@ -153,23 +142,25 @@ app.post('/api/login', async (req,res)=>{
       const token = jwt.sign({ username:'admin', admin:true }, JWT_SECRET, { expiresIn:'7d' });
       return res.json({ token, user:{ username:'admin', admin:true } });
     }
-    const r = await pool.query('SELECT username, password_hash, banned, balances FROM users WHERE username = $1', [username]);
+    const r = await pool.query('SELECT username, password, banned, balances FROM users WHERE username=$1', [username]);
     if(r.rowCount===0) return res.status(401).json({ error:'invalid' });
     const row = r.rows[0];
     if(row.banned) return res.status(403).json({ error:'Your account has been banned by admin.' });
-    const ok = await bcrypt.compare(password, row.password_hash);
+    const ok = await bcrypt.compare(password, row.password);
     if(!ok) return res.status(401).json({ error:'invalid' });
     const token = jwt.sign({ username }, JWT_SECRET, { expiresIn:'7d' });
-    res.json({ token, user: sanitizeUserRow(row) });
+    return res.json({ token, user: sanitizeUserRow(row) });
   }catch(e){ console.error('login err', e); res.status(500).json({ error:'server' }); }
 });
 
+// Admin: list users
 app.get('/api/admin/users', authMiddleware, async (req,res)=>{
   if(!req.user || req.user.username!=='admin') return res.status(403).json({ error:'forbidden' });
   const r = await pool.query('SELECT username, balances, banned FROM users ORDER BY username');
   res.json(r.rows);
 });
 
+// Admin: set balance
 app.post('/api/admin/set-balance', authMiddleware, async (req,res)=>{
   if(!req.user || req.user.username!=='admin') return res.status(403).json({ error:'forbidden' });
   const { username, currency, amount } = req.body;
@@ -178,29 +169,30 @@ app.post('/api/admin/set-balance', authMiddleware, async (req,res)=>{
   if(r.rowCount===0) return res.status(404).json({ error:'not found' });
   const balances = r.rows[0].balances || {EUR:0,BTC:0,ETH:0,USDT:0,XRP:0,LTC:0};
   balances[currency] = amount;
-  await pool.query('UPDATE users SET balances = $1 WHERE username = $2', [balances, username]);
-  await pool.query('INSERT INTO transactions(username, type, currency, amount) VALUES($1,$2,$3,$4)', [username,'admin-adjust',currency,amount]);
-  // notify user via socket
+  await pool.query('UPDATE users SET balances=$1 WHERE username=$2', [balances, username]);
+  await pool.query('INSERT INTO transactions(username,type,currency,amount) VALUES($1,$2,$3,$4)', [username,'admin-adjust',currency,amount]);
+  // notify
   io.to(username).emit('balance_updated', { username, currency, amount, balances });
   // append chat message
-  const chatRes = await pool.query('SELECT messages FROM chats WHERE username=$1', [username]);
-  let msgs = [];
-  if(chatRes.rowCount) msgs = chatRes.rows[0].messages || [];
+  const cr = await pool.query('SELECT messages FROM chats WHERE username=$1', [username]);
+  let msgs = cr.rowCount ? cr.rows[0].messages || [] : [];
   msgs.push({ from:'admin', text:`Your ${currency} balance set to ${amount}`, time: new Date() });
-  await pool.query('UPDATE chats SET messages = $1, updated_at = NOW() WHERE username = $2', [msgs, username]);
-  io.to(username).emit('chat_message', { user: username, from:'admin', text:`Your ${currency} balance set to ${amount}`, time: new Date() });
+  await pool.query('INSERT INTO chats(username, messages) VALUES($1,$2) ON CONFLICT (username) DO UPDATE SET messages = $2, updated_at = NOW()', [username, msgs]);
+  io.to(username).emit('chat_message', { user: username, from:'admin', text:`Your ${currency} balance set to ${amount}`, time:new Date() });
   res.json({ ok:true });
 });
 
+// Admin ban/unban
 app.post('/api/admin/ban', authMiddleware, async (req,res)=>{
   if(!req.user || req.user.username!=='admin') return res.status(403).json({ error:'forbidden' });
   const { username, ban } = req.body;
   if(!username || typeof ban !== 'boolean') return res.status(400).json({ error:'missing' });
-  await pool.query('UPDATE users SET banned = $1 WHERE username = $2', [ban, username]);
+  await pool.query('UPDATE users SET banned=$1 WHERE username=$2', [ban, username]);
   io.to(username).emit('banned', { banned: ban, message: ban ? 'You have been banned by admin.' : 'You have been unbanned.' });
   res.json({ ok:true });
 });
 
+// Admin chat fetch
 app.get('/api/admin/chat/:username', authMiddleware, async (req,res)=>{
   if(!req.user || req.user.username!=='admin') return res.status(403).json({ error:'forbidden' });
   const username = req.params.username;
@@ -208,18 +200,13 @@ app.get('/api/admin/chat/:username', authMiddleware, async (req,res)=>{
   res.json(r.rowCount ? r.rows[0].messages : []);
 });
 
+// Export transactions CSV
 app.get('/api/transactions/export', authMiddleware, async (req,res)=>{
   const requester = req.user;
-  const usernameQuery = req.query.username;
-  let filter = '';
-  const params = [];
-  if(requester.username !== 'admin'){
-    filter = 'WHERE username = $1';
-    params.push(requester.username);
-  } else if(usernameQuery){
-    filter = 'WHERE username = $1';
-    params.push(usernameQuery);
-  }
+  const username = req.query.username;
+  let filter = '', params = [];
+  if(requester.username !== 'admin'){ filter = 'WHERE username = $1'; params.push(requester.username); }
+  else if(username){ filter = 'WHERE username = $1'; params.push(username); }
   const q = `SELECT username, type, pair, amount, currency, side, value_eur, timestamp FROM transactions ${filter} ORDER BY timestamp DESC`;
   const r = await pool.query(q, params);
   const records = r.rows.map(t=>({ username: t.username, type: t.type, pair: t.pair, amount: t.amount, currency: t.currency, side: t.side, valueEUR: t.value_eur, timestamp: t.timestamp }));
@@ -230,9 +217,10 @@ app.get('/api/transactions/export', authMiddleware, async (req,res)=>{
 
 app.get('/api/prices', (req,res)=> res.json(serverPriceSnapshot()));
 
-// Chat and trades via socket
+// Socket.io
 io.on('connection', (socket)=>{
   console.log('socket connected', socket.id);
+
   socket.on('auth', async ({ token })=>{
     try{
       const payload = jwt.verify(token, JWT_SECRET);
@@ -242,7 +230,6 @@ io.on('connection', (socket)=>{
         socket.join('admins');
         socket.emit('prices', serverPriceSnapshot());
       } else {
-        // check banned
         const r = await pool.query('SELECT banned, balances FROM users WHERE username=$1', [username]);
         if(r.rowCount && r.rows[0].banned){
           socket.emit('banned', { banned:true, message:'Your account is banned.' });
@@ -261,9 +248,8 @@ io.on('connection', (socket)=>{
     try{
       const payload = jwt.verify(token, JWT_SECRET);
       const username = payload.username;
-      const r = await pool.query('SELECT banned, messages FROM chats WHERE username=$1', [username]);
-      if(r.rowCount && r.rows[0].banned) return socket.emit('banned', { banned:true });
-      let msgs = (r.rowCount && r.rows[0].messages) ? r.rows[0].messages : [];
+      const cr = await pool.query('SELECT messages FROM chats WHERE username=$1', [username]);
+      let msgs = cr.rowCount ? cr.rows[0].messages || [] : [];
       msgs.push({ from: username, text, time: new Date() });
       await pool.query('INSERT INTO chats(username, messages) VALUES($1,$2) ON CONFLICT (username) DO UPDATE SET messages = $2, updated_at = NOW()', [username, msgs]);
       io.to('admins').emit('chat_message', { user: username, from: username, text, time: new Date() });
@@ -275,8 +261,8 @@ io.on('connection', (socket)=>{
     try{
       const payload = jwt.verify(token, JWT_SECRET);
       if(payload.username !== 'admin') return;
-      const r = await pool.query('SELECT messages FROM chats WHERE username=$1', [username]);
-      let msgs = r.rowCount && r.rows[0].messages ? r.rows[0].messages : [];
+      const cr = await pool.query('SELECT messages FROM chats WHERE username=$1', [username]);
+      let msgs = cr.rowCount ? cr.rows[0].messages || [] : [];
       msgs.push({ from:'admin', text, time: new Date() });
       await pool.query('INSERT INTO chats(username, messages) VALUES($1,$2) ON CONFLICT (username) DO UPDATE SET messages = $2, updated_at = NOW()', [username, msgs]);
       io.to(username).emit('chat_message', { user: username, from: 'admin', text, time: new Date() });
@@ -316,12 +302,8 @@ io.on('connection', (socket)=>{
   socket.on('disconnect', ()=>{});
 });
 
-// Serve static and SPA fallback
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+// SPA fallback
+app.get('/', (req,res)=> res.sendFile(path.join(__dirname,'public','index.html')));
+app.get('*', (req,res)=> res.sendFile(path.join(__dirname,'public','index.html')));
 
 server.listen(PORT, ()=> console.log('Server started on', PORT));
